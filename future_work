@@ -1,0 +1,9 @@
+to upload on play store:
+in .env owner==false
+add acount deletion feature
+get public url
+for hosting Use an email service on your own domain with SPF and DKIM set up.
+Backups for shop data
+
+for codecanyon
+add multi user thing also
