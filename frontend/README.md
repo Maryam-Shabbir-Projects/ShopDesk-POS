@@ -16,6 +16,7 @@ Inventory and point-of-sale app for small shops. Mobile first, adapts to tablets
 
 ## Run it
 ```bash
+in lib/core/config/app_config.dart change url with respect to your backend domain
 flutter create . --org com.yourcompany --project-name shopdesk   # generates android/ ios/ (keeps lib/)
 flutter pub get
 flutter run
