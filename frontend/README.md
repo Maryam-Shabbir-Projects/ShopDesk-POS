@@ -74,3 +74,6 @@ that call your REST API, then change the two provider definitions
 ## Fonts
 Screen titles use **Pacifico** (cursive), bundled in `assets/fonts` under the SIL Open Font Licence (`OFL.txt`).
 Title colour is dark green on light screens and a lighter green on dark screens (`AppTheme.titleGreen`).
+
+<img width="1920" height="1080" alt="ShopDesk banner, all 16 screens@1x" src="https://github.com/user-attachments/assets/cddcfbb7-b769-4460-83ca-29250b23240f" />
+
