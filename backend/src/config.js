@@ -7,7 +7,7 @@ export function loadConfig(overrides = {}) {
   const config = {
     nodeEnv: env.NODE_ENV ?? 'development',
     port: num(env.PORT, 3000),
-    dbPath: env.DB_PATH ?? './data/shopdesk.db',
+    databaseUrl: env.DATABASE_URL ?? '',
     jwtSecret: env.JWT_SECRET ?? '',
     codeSecret: env.CODE_SECRET ?? '',
     ownerOnly: bool(env.OWNER_ONLY, true),
@@ -36,6 +36,7 @@ export function loadConfig(overrides = {}) {
     const problems = [];
     if (config.jwtSecret.length < 32) problems.push('JWT_SECRET must be at least 32 characters');
     if (config.codeSecret.length < 32) problems.push('CODE_SECRET must be at least 32 characters');
+    if (!config.databaseUrl) problems.push('DATABASE_URL is required (your Neon connection string)');
     if (!config.smtp.host) problems.push('SMTP_HOST is required so codes can be emailed');
     if (problems.length) throw new Error('Bad configuration:\n - ' + problems.join('\n - '));
   } else {

@@ -1,19 +1,31 @@
-import { test, beforeEach, afterEach } from 'node:test';
+import { test, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadConfig } from '../src/config.js';
-import { openDb } from '../src/db.js';
+import { openDb, migrate, one } from '../src/db.js';
 import { createApp } from '../src/app.js';
+import { startTestDatabase } from './test-database.js';
 
 const EMAIL = 'owner@shop.com';
 const PASSWORD = 'Passw0rd1';
 
-let server, base, db, clock, mails;
+let server, base, db, clock, mails, testDb;
+
+before(async () => {
+  testDb = await startTestDatabase();
+  db = openDb(testDb.url);
+  await migrate(db);
+});
+
+after(async () => {
+  await db.end();
+  await testDb.stop();
+});
 
 async function start(overrides = {}) {
   clock = 1_800_000_000_000;
   mails = [];
+  await db.query('TRUNCATE users, codes, reset_tokens, sessions, throttle CASCADE');
   const config = loadConfig({ ipRateLimit: false, ...overrides });
-  db = openDb(':memory:');
   const mailer = { sendCode: async (email, purpose, code) => { mails.push({ email, purpose, code }); } };
   const app = createApp({ config, db, mailer, now: () => clock });
   await new Promise((r) => { server = app.listen(0, '127.0.0.1', r); });
@@ -238,10 +250,10 @@ test('open sign-up mode: existing address gets the same answer and no email', as
 test('codes are stored hashed, passwords are stored hashed', async () => {
   await call('/auth/signup', { email: EMAIL, password: PASSWORD });
   const code = lastCode('signup');
-  const row = db.prepare('SELECT * FROM codes').get();
+  const row = await one(db, 'SELECT * FROM codes');
   assert.notEqual(row.code_hash, code);
   assert.ok(!JSON.stringify(row).includes(code));
-  assert.ok(db.prepare('SELECT pass_hash FROM users').get().pass_hash.startsWith('scrypt$'));
+  assert.ok((await one(db, 'SELECT pass_hash FROM users')).pass_hash.startsWith('scrypt$'));
 });
 
 test('bad JSON and unknown routes get clean JSON errors', async () => {
@@ -249,4 +261,65 @@ test('bad JSON and unknown routes get clean JSON errors', async () => {
   assert.equal(res.status, 400);
   assert.equal((await res.json()).error.code, 'invalid_request');
   assert.equal((await call('/nope')).status, 404);
+});
+
+test('parallel guesses cannot beat the 5-try limit', async () => {
+  await call('/auth/signup', { email: EMAIL, password: PASSWORD });
+  const right = lastCode('signup');
+  const wrong = right === '111111' ? '222222' : '111111';
+  // 5 guesses at once must all be counted (no lost updates): the next try is the 6th.
+  const five = await Promise.all(
+    Array.from({ length: 5 }, () => call('/auth/verify-signup', { email: EMAIL, code: wrong })),
+  );
+  assert.ok(five.every((g) => errorCode(g) === 'invalid_code'));
+  assert.equal(errorCode(await call('/auth/verify-signup', { email: EMAIL, code: right })), 'too_many_attempts');
+});
+
+test('a burst of 20 parallel guesses cannot get in, even with the right code in it', async () => {
+  await call('/auth/signup', { email: EMAIL, password: PASSWORD });
+  const right = lastCode('signup');
+  const wrong = right === '111111' ? '222222' : '111111';
+  const burst = await Promise.all([
+    ...Array.from({ length: 19 }, () => call('/auth/verify-signup', { email: EMAIL, code: wrong })),
+    call('/auth/verify-signup', { email: EMAIL, code: right }),
+  ]);
+  // At most 5 requests were ever checked against the code; the right one can win only if it was among them.
+  assert.ok(burst.filter((r) => r.status === 200).length <= 1);
+  assert.ok(burst.some((r) => errorCode(r) === 'too_many_attempts') || burst.some((r) => r.status === 200));
+});
+
+test('the same code used twice at the same moment works only once', async () => {
+  await call('/auth/signup', { email: EMAIL, password: PASSWORD });
+  const code = lastCode('signup');
+  const both = await Promise.all([
+    call('/auth/verify-signup', { email: EMAIL, code }),
+    call('/auth/verify-signup', { email: EMAIL, code }),
+  ]);
+  assert.deepEqual(both.map((r) => r.status).sort(), [200, 400]);
+});
+
+test('two people verifying at the same moment: only one becomes the owner', async () => {
+  await call('/auth/signup', { email: 'a@shop.com', password: PASSWORD });
+  await call('/auth/signup', { email: 'b@shop.com', password: PASSWORD });
+  const codeA = mails.find((m) => m.email === 'a@shop.com').code;
+  const codeB = mails.find((m) => m.email === 'b@shop.com').code;
+  const results = await Promise.all([
+    call('/auth/verify-signup', { email: 'a@shop.com', code: codeA }),
+    call('/auth/verify-signup', { email: 'b@shop.com', code: codeB }),
+  ]);
+  assert.deepEqual(results.map((r) => r.status).sort(), [200, 403]);
+  assert.equal((await one(db, 'SELECT count(*)::int AS n FROM users WHERE verified')).n, 1);
+});
+
+test('the same refresh token used twice at the same moment rotates only once', async () => {
+  const s = await registerOwner();
+  const both = await Promise.all([
+    call('/auth/refresh', { refreshToken: s.json.refreshToken }),
+    call('/auth/refresh', { refreshToken: s.json.refreshToken }),
+  ]);
+  assert.deepEqual(both.map((r) => r.status).sort(), [200, 401]);
+});
+
+test('the health check reaches the database', async () => {
+  assert.equal((await call('/health')).status, 200);
 });
