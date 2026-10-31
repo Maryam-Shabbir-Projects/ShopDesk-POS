@@ -2,7 +2,7 @@ import { test, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { loadConfig } from '../src/config.js';
 import { openDb, migrate, one } from '../src/db.js';
-import { createApp } from '../src/app.js';
+import { createApp } from '../src/create-app.js';
 import { startTestDatabase } from './test-database.js';
 
 const EMAIL = 'owner@shop.com';

@@ -16,7 +16,7 @@ Needs **Node 20 or newer** and a **Neon Postgres** database. Tables are created 
 cd shopdesk_server
 npm install
 cp .env.example .env        # set DATABASE_URL, JWT_SECRET, CODE_SECRET (see below)
-npm start                   # http://localhost:3000
+npm start                   # http://localhost:3000  (runs src/local.js)
 ```
 `/health` should answer `{"ok":true}` (it also checks the database).
 
@@ -30,6 +30,11 @@ npm start                   # http://localhost:3000
 | `TRUST_PROXY` | `1` when behind Render / Railway / Fly / Caddy / nginx, so rate limits see the real IP. |
 
 In production (`NODE_ENV=production`) the server refuses to start unless the database, both secrets and SMTP are set.
+
+## Entry files
+- `src/local.js`: normal server (your PC, Docker, VPS, Render, Railway).
+- `src/app.js`: serverless entry for **Vercel**. See `DEPLOY.md`.
+- `src/create-app.js`: the actual app, shared by both.
 
 ## Tests
 ```bash

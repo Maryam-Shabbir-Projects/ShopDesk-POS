@@ -69,7 +69,11 @@ export function openDb(connectionString, { max = 10 } = {}) {
 
 /** Creates the tables if they are missing. Safe to run on every start. */
 export async function migrate(db) {
-  await db.query(SCHEMA);
+  // The lock makes several servers starting at once (serverless cold starts) take turns.
+  await tx(db, async (client) => {
+    await client.query('SELECT pg_advisory_xact_lock(7000)');
+    await client.query(SCHEMA);
+  });
 }
 
 /** Runs a query, returns all rows. */

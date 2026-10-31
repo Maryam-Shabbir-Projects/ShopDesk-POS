@@ -10,4 +10,4 @@ EXPOSE 3000
 # /health also checks the database connection.
 HEALTHCHECK --interval=30s --timeout=8s --start-period=20s --retries=3 \
   CMD wget -qO- http://127.0.0.1:3000/health || exit 1
-CMD ["node", "--no-warnings", "src/server.js"]
+CMD ["node", "--no-warnings", "src/local.js"]

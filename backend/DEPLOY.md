@@ -77,6 +77,26 @@ user row in the Neon SQL Editor (`DELETE FROM users;`) and register again.
   (skip `API_DOMAIN`) and `TRUST_PROXY=1`. No disk is needed because the data is in Neon.
   Health check path: `/health`. Several instances are fine.
 
+## Deploying on Vercel
+The server works on Vercel (entry file `src/app.js`, which Vercel finds on its own). Your own Docker/VPS
+and local runs use `src/local.js` instead.
+
+1. Put the `shopdesk_server` folder in your Git repo and import it in Vercel. If the server folder is not
+   the repo root, set **Project Settings -> Root Directory** to that folder.
+2. **Settings -> Environment Variables**, add (for Production):
+   `DATABASE_URL` (Neon **pooled** string), `JWT_SECRET`, `CODE_SECRET`, `SMTP_HOST`, `SMTP_PORT`,
+   `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM`, `OWNER_ONLY=true`.
+3. **Redeploy** (changing variables does nothing until you redeploy).
+4. Open `https://YOUR-PROJECT.vercel.app/health`. You should see `{"ok":true}`.
+   If you see an error, open **Logs** in Vercel: a missing variable is named in the message.
+
+Good to know on Vercel:
+- The first request after a quiet period is slower (the function and Neon both wake up).
+- Emails are sent after the answer goes back, using Vercel's `waitUntil`, so they still arrive.
+- The per-IP limit is kept per function copy, so it is weaker here. The per-email limits (code sends,
+  wrong passwords, wrong code tries) live in the database and are fully enforced.
+- Outbound SMTP on port 587 or 465 works. Port 25 does not.
+
 ## Production checklist
 - [ ] DNS A record resolves, `https://api.../health` works with a valid certificate
 - [ ] `JWT_SECRET` and `CODE_SECRET` are different 96-character random values
